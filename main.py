@@ -2,9 +2,12 @@ from fastapi import FastAPI, Path, HTTPException, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, computed_field
 from typing import Annotated, Literal, Optional
-import json
-import os
-
+from database import engine
+from models import Base
+Base.metadata.create_all(bind=engine)
+# new imports
+from database import SessionLocal
+from models import Patient as PatientModel
 
 app = FastAPI()
 
@@ -46,17 +49,6 @@ class PatientUpdate(BaseModel):
     weight: Annotated[Optional[float], Field(default=None, gt=0)]
 
 
-def load_data():
-    with open('patients.json','r') as f:
-        data = json.load(f)
-
-    return data
-
-def save_data(data):
-    with open('patients.json', 'w') as f:
-        json.dump(data, f, indent=4)
-
-
 @app.get('/')
 def hello():
     return {'message':'Patient Management System API'}
@@ -67,17 +59,21 @@ def about():
 
 @app.get('/view')
 def view():
-    data = load_data()
-    
-    return data
+    db = SessionLocal()
+    patients = db.query(PatientModel).all()
+    db.close()
+    return patients
 
 @app.get('/patient/{patient_id}')
 def view_patient(patient_id: str = Path(..., description ='ID of the patient in the DB', example = 'P001')):
-    data = load_data()
+    db = SessionLocal()
+    patient = db.query(PatientModel).filter(PatientModel.id == patient_id).first()
+    db.close()
 
-    if patient_id in data:
-        return data[patient_id]
-    raise HTTPException(status_code=404, detail='Patient not found')
+    if not patient:
+        raise HTTPException(status_code=404, detail='Patient not found')
+    
+    return patient
  
 @app.get('/sort')
 def sort_patients(sort_by: str = Query(..., description='sort on the basis of height, weight or bmi'), order: str = Query('asc', description='sort in asc or desc order')):
@@ -90,62 +86,71 @@ def sort_patients(sort_by: str = Query(..., description='sort on the basis of he
     if order not in ['asc', 'desc']:
         raise HTTPException(status_code=400, detail='Invalid order select between asc or desc')
     
-    data = load_data()
+    db = SessionLocal()
+    patients = db.query(PatientModel).all()
+    db.close()
 
-    sort_order = True if order=='desc' else False
-
-    sorted_data = sorted(data.values(), key=lambda x: x.get(sort_by, 0), reverse=sort_order)
-
+    sort_order = True if order == 'desc' else False
+    sorted_data = sorted(patients, key=lambda X: getattr(X, sort_by, 0), reverse=sort_order)
     return sorted_data
 
 
 @app.post('/create')
 def create_patient(patient: Patient):
 
-    data = load_data()
+    db = SessionLocal()
 
-    if patient.id in data:
-        raise HTTPException(status_code = 400, detail='Patient already exist')
+    patient_exists = db.query(PatientModel).filter(PatientModel.id == patient.id).first()
+    if patient_exists:
+        db.close()
+        raise HTTPException(status_code=400, detail='Patient already exists')
     
-    data[patient.id] = patient.model_dump(exclude=['id'])
+    new_patient = PatientModel(
+        id = patient.id,
+        name = patient.name,
+        city = patient.city,
+        age = patient.age,
+        gender = patient.gender,
+        height = patient.height,
+        weight = patient.weight
+    )
 
-    save_data(data)
+    db.add(new_patient)
+    db.commit()
+    db.close()
 
-    return JSONResponse(status_code=201, content={'message':'patient created successfully'}) 
+    return JSONResponse(status_code=200, content={'message': 'patient created successfully'})
 
 @app.put('/edit/{patient_id}')
 def update_patient(patient_id: str, patient_update: PatientUpdate):
-    data = load_data()
+    db = SessionLocal()
+    patient = db.query(PatientModel).filter(PatientModel.id == patient_id).first()
 
-    if patient_id not in data:
+    if not patient:
+        db.close()
         raise HTTPException(status_code=404, detail='Patient not found')
     
-    existing_patient_info = data[patient_id]
+    updated_data = patient_update.model_dump(exclude_unset=True)
 
-    updated_patient_info = patient_update.model_dump(exclude_unset=True)
+    for key, value in updated_data.items():
+        setattr(patient, key, value)
 
-    for key, value in updated_patient_info.items():
-        existing_patient_info[key] = value
+    db.commit()
+    db.close()
 
-    existing_patient_info['id'] = patient_id
-    patient_pydantic_obj = Patient(**existing_patient_info)
-    existing_patient_info = patient_pydantic_obj.model_dump(exclude='id')
-
-    data[patient_id] = existing_patient_info
-
-    save_data(data)
-
-    return JSONResponse(status_code=200, content={'message':'patient updated'})
+    return JSONResponse(status_code=200, content={'message':'Patient updated'})
 
 @app.delete('/delete/{patient_id}')
 def delete_patient(patient_id: str):
-    data = load_data()
+    db = SessionLocal()
+    patient = db.query(PatientModel).filter(PatientModel.id == patient_id).first()
 
-    if patient_id not in data:
+    if not patient:
+        db.close()
         raise HTTPException(status_code=404, detail='Patient not found')
     
-    del data[patient_id]
+    db.delete(patient)
+    db.commit()
+    db.close()
 
-    save_data(data)
-
-    return JSONResponse(status_code=200, content={'message':'Patient deleted'})
+    return JSONResponse(status_code=200, content={'message':'Patient record deleted'})
