@@ -5,7 +5,6 @@ from typing import Annotated, Literal, Optional
 from database import engine
 from models import Base
 Base.metadata.create_all(bind=engine)
-# new imports
 from database import SessionLocal
 from models import Patient as PatientModel
 
@@ -59,21 +58,30 @@ def about():
 
 @app.get('/view')
 def view():
-    db = SessionLocal()
-    patients = db.query(PatientModel).all()
-    db.close()
-    return patients
+    try:
+        db = SessionLocal()
+        patients = db.query(PatientModel).all()
+        return patients
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'Database error: {str(e)}')
+    finally:
+        db.close()
 
 @app.get('/patient/{patient_id}')
 def view_patient(patient_id: str = Path(..., description ='ID of the patient in the DB', example = 'P001')):
-    db = SessionLocal()
-    patient = db.query(PatientModel).filter(PatientModel.id == patient_id).first()
-    db.close()
+    try:
+        db = SessionLocal()
+        patient = db.query(PatientModel).filter(PatientModel.id == patient_id).first()
 
-    if not patient:
-        raise HTTPException(status_code=404, detail='Patient not found')
-    
-    return patient
+        if not patient:
+            raise HTTPException(status_code=404, detail='Patient not found')
+        return patient
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'Database error: {str(e)}')
+    finally:
+        db.close()
  
 @app.get('/sort')
 def sort_patients(sort_by: str = Query(..., description='sort on the basis of height, weight or bmi'), order: str = Query('asc', description='sort in asc or desc order')):
@@ -86,71 +94,82 @@ def sort_patients(sort_by: str = Query(..., description='sort on the basis of he
     if order not in ['asc', 'desc']:
         raise HTTPException(status_code=400, detail='Invalid order select between asc or desc')
     
-    db = SessionLocal()
-    patients = db.query(PatientModel).all()
-    db.close()
-
-    sort_order = True if order == 'desc' else False
-    sorted_data = sorted(patients, key=lambda X: getattr(X, sort_by, 0), reverse=sort_order)
-    return sorted_data
+    try:
+        db = SessionLocal()
+        patients = db.query(PatientModel).all()
+        sort_order = True if order == 'desc' else False
+        sorted_data = sorted(patients, key=lambda X: getattr(X, sort_by, 0), reverse=sort_order)
+        return sorted_data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'Database error: {str(e)}')
+    finally:
+        db.close()
 
 
 @app.post('/create')
 def create_patient(patient: Patient):
+    try:
+        db = SessionLocal()
+        patient_exists = db.query(PatientModel).filter(PatientModel.id == patient.id).first()
+        if patient_exists:
+            db.close()
+            raise HTTPException(status_code=400, detail='Patient already exists')
+        
+        new_patient = PatientModel(
+            id = patient.id,
+            name = patient.name,
+            city = patient.city,
+            age = patient.age,
+            gender = patient.gender,
+            height = patient.height,
+            weight = patient.weight
+        )
 
-    db = SessionLocal()
-
-    patient_exists = db.query(PatientModel).filter(PatientModel.id == patient.id).first()
-    if patient_exists:
+        db.add(new_patient)
+        db.commit()
+        return JSONResponse(status_code=200, content={'message': 'patient created successfully'})
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'Database error: {str(e)}')
+    finally:
         db.close()
-        raise HTTPException(status_code=400, detail='Patient already exists')
-    
-    new_patient = PatientModel(
-        id = patient.id,
-        name = patient.name,
-        city = patient.city,
-        age = patient.age,
-        gender = patient.gender,
-        height = patient.height,
-        weight = patient.weight
-    )
-
-    db.add(new_patient)
-    db.commit()
-    db.close()
-
-    return JSONResponse(status_code=200, content={'message': 'patient created successfully'})
 
 @app.put('/edit/{patient_id}')
 def update_patient(patient_id: str, patient_update: PatientUpdate):
-    db = SessionLocal()
-    patient = db.query(PatientModel).filter(PatientModel.id == patient_id).first()
-
-    if not patient:
+    try:
+        db = SessionLocal()
+        patient = db.query(PatientModel).filter(PatientModel.id == patient_id).first()
+        if not patient:
+            db.close()
+            raise HTTPException(status_code=404, detail='Patient not found')   
+        updated_data = patient_update.model_dump(exclude_unset=True)
+        for key, value in updated_data.items():
+            setattr(patient, key, value)
+        db.commit()
+        return JSONResponse(status_code=200, content={'message':'Patient updated'})
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'Database error: {str(e)}')
+    finally:
         db.close()
-        raise HTTPException(status_code=404, detail='Patient not found')
-    
-    updated_data = patient_update.model_dump(exclude_unset=True)
 
-    for key, value in updated_data.items():
-        setattr(patient, key, value)
-
-    db.commit()
-    db.close()
-
-    return JSONResponse(status_code=200, content={'message':'Patient updated'})
 
 @app.delete('/delete/{patient_id}')
 def delete_patient(patient_id: str):
-    db = SessionLocal()
-    patient = db.query(PatientModel).filter(PatientModel.id == patient_id).first()
-
-    if not patient:
+    try:
+        db = SessionLocal()
+        patient = db.query(PatientModel).filter(PatientModel.id == patient_id).first()
+        if not patient:
+            db.close()
+            raise HTTPException(status_code=404, detail='Patient not found')
+        db.delete(patient)
+        db.commit()
+        return JSONResponse(status_code=200, content={'message':'Patient record deleted'})
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'Database error: {str(e)}')
+    finally:
         db.close()
-        raise HTTPException(status_code=404, detail='Patient not found')
-    
-    db.delete(patient)
-    db.commit()
-    db.close()
-
-    return JSONResponse(status_code=200, content={'message':'Patient record deleted'})
