@@ -14,7 +14,7 @@ A REST API built with FastAPI to manage patient records with auto-calculated BMI
 - Python, FastAPI, Pydantic, SQLAlchemy, SQLite
 
 ```
-## Project Structure
+Project Structure
 ├── main.py          # API routes and Pydantic models
 ├── database.py      # Database connection and session setup
 ├── models.py        # SQLAlchemy table models
