@@ -1,4 +1,4 @@
-# Patient Management API
+Patient Management API
 
 A REST API built with FastAPI to manage patient records with auto-calculated BMI and health verdicts.
 
@@ -6,14 +6,25 @@ A REST API built with FastAPI to manage patient records with auto-calculated BMI
 - Full CRUD operations on patient records
 - Auto-calculates BMI and health verdict (underweight/normal/overweight/obese)
 - Sort patients by height, weight, or BMI
-- Data stored in JSON file
+- SQLite database integration using SQLAlchemy ORM
+- Proper error handling with meaningful HTTP status codes
+- Auto-generated API documentation via Swagger UI
 
 ## Tech Stack
-- Python, FastAPI, Pydantic
+- Python, FastAPI, Pydantic, SQLAlchemy, SQLite
+
+## Project Structure
+├── main.py          # API routes and Pydantic models
+├── database.py      # Database connection and session setup
+├── models.py        # SQLAlchemy table models
+├── patients.db      # SQLite database
+├── requirements.txt
+└── README.md
 
 ## Run Locally
+
 ```bash
-pip install fastapi uvicorn
+pip install -r requirements.txt
 uvicorn main:app --reload
 ```
 
@@ -30,7 +41,9 @@ API docs available at `http://127.0.0.1:8000/docs`
 | DELETE | /delete/{id} | Delete a patient |
 
 ## Roadmap
-- [ ] Migrate to PostgreSQL database
-- [ ] Add JWT authentication
+- [x] JSON file storage
+- [x] Migrate to SQLite database
+- [x] Error handling
+- [ ] JWT authentication
 - [ ] Dockerize the application
 - [ ] Deploy on Railway/Render
