@@ -173,3 +173,24 @@ def delete_patient(patient_id: str):
         raise HTTPException(status_code=500, detail=f'Database error: {str(e)}')
     finally:
         db.close()
+
+@app.get('/search')
+def search_patients(name: str = Query(None), city: str = Query(None)):
+    try:
+        db = SessionLocal()
+        patients = db.query(PatientModel)
+        if name:
+            patients = patients.filter(PatientModel.name.ilike(f'%{name}%'))
+        if city:
+            patients = patients.filter(PatientModel.city.ilike(f'%{city}%'))
+        result = patients.all()
+        if not result:
+            raise HTTPException(status_code=404, detail='No patients found')
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'Database error: {str(e)}')
+    finally:
+        db.close()
+
