@@ -68,7 +68,7 @@ def view():
         db.close()
 
 @app.get('/patient/{patient_id}')
-def view_patient(patient_id: str = Path(..., description ='ID of the patient in the DB', example = 'P001')):
+def view_patient(patient_id: str = Path(..., description ='ID of the patient in the DB', examples = 'P001')):
     try:
         db = SessionLocal()
         patient = db.query(PatientModel).filter(PatientModel.id == patient_id).first()
