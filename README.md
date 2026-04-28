@@ -45,6 +45,7 @@ API docs available at `http://127.0.0.1:8000/docs`
 - [x] JSON file storage
 - [x] Migrate to SQLite database
 - [x] Error handling
+- [ ] Test case
 - [ ] JWT authentication
 - [ ] Dockerize the application
 - [ ] Deploy on Railway/Render
